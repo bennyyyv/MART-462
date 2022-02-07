@@ -12,11 +12,12 @@ local score = 0
 local died = false
  
 local asteroidsTable = {} -- this is an array (called tables in Lua)
- 
+ local currentDelay = 1500
 local ship
 local gameLoopTimer
 local livesText
 local scoreText
+local timeToChange = 0 
 
 local physics = require( "physics" )
 physics.start()
@@ -142,22 +143,148 @@ end
 
 createAsteroid()
 
+
 local function fireLaser()
-   local mainGroup = display.newGroup()
+    local mainGroup = display.newGroup()
     local newLaser = display.newImageRect(objectSheet, 5, 14, 40 )
     physics.addBody( newLaser, "dynamic", { isSensor=true } )
     newLaser.isBullet = true
     newLaser.myName = "laser"
- 
      newLaser.x = ship.x
-     newLaser.y = ship.y
-     newLaser:toBack()
+    newLaser.y = ship.y
+    newLaser:toBack()
      transition.to( newLaser, { y=-40, time=500,
         onComplete = function() display.remove( newLaser ) end
     } )
+     mainGroup:insert(newLaser)
 end
 
 ship:addEventListener( "tap", fireLaser )
 
+local function dragShip( event )
+ local ship = event.target
+ local phase = event.phase
+
+  if ( "began" == phase ) then
+        -- Set touch focus on the ship
+        display.currentStage:setFocus( ship )
+        -- Store initial offset position
+        ship.touchOffsetX = event.x - ship.x
+        ship.touchOffsetY = event.y - ship.y
+    elseif ( "moved" == phase ) then
+        -- Move the ship to the new touch position
+        ship.x = event.x - ship.touchOffsetX
+        ship.y = event.y - ship.touchOffsetY
+         elseif ( "ended" == phase or "cancelled" == phase ) then
+        -- Release touch focus on the ship
+        display.currentStage:setFocus( nil )
+
+        -- Store initial offset position
+ship.touchOffsetX = event.x - ship.x
+ship.touchOffsetY = event.y - ship.y
+
+--ship.x = event.x - ship.touchOffsetX
+--ship.y = event.y - ship.touchOffsetY
 
 
+    end
+     return true  -- Prevents touch propagation to underlying objects
+end
+
+ship:addEventListener( "touch", dragShip )
+
+local function gameLoop()
+
+   if(timeToChange >= 5) then 
+    currentDelay = currentDelay - 10
+    print(currentDelay)
+    timeToChange = 0
+  end
+createAsteroid()
+
+    for i = #asteroidsTable, 1, -1 do
+    local thisAsteroid = asteroidsTable[i]
+ 
+        if ( thisAsteroid.x < -100 or
+             thisAsteroid.x > display.contentWidth + 100 or
+             thisAsteroid.y < -100 or
+             thisAsteroid.y > display.contentHeight + 100 )
+        then
+            display.remove( thisAsteroid )
+            table.remove( asteroidsTable, i )
+        end
+     end
+     timer.cancel(gameLoopTimer)
+end
+
+local function startGameLoop ()
+gameLoopTimer = timer.performWithDelay( currentDelay, gameLoop, 0 )
+
+end 
+
+gameLoopTimer = timer.performWithDelay( currentDelay, gameLoop, 0 )
+otherTimer = timer.performWithDelay( 2000, startGameLoop, 0 )
+timeToChange = timeToChange + 1
+
+local function restoreShip()
+ 
+    ship.isBodyActive = false
+    ship.x = display.contentCenterX
+    ship.y = display.contentHeight - 100
+ 
+    -- Fade in the ship
+    transition.to( ship, { alpha=1, time=4000,
+        onComplete = function()
+            ship.isBodyActive = true
+            died = false
+        end
+    } )
+end
+
+local function onCollision( event )
+ 
+  if ( event.phase == "began" ) then
+ 
+        local obj1 = event.object1
+        local obj2 = event.object2
+ 
+       if ( ( obj1.myName == "laser" and obj2.myName == "asteroid" ) or
+             ( obj1.myName == "asteroid" and obj2.myName == "laser" ) )
+        then
+            -- Remove both the laser and asteroid
+            display.remove( obj1 )
+            display.remove( obj2 )
+ 
+            for i = #asteroidsTable, 1, -1 do
+                if ( asteroidsTable[i] == obj1 or asteroidsTable[i] == obj2 ) then
+                    table.remove( asteroidsTable, i )
+                    break
+                end
+            end
+ 
+             -- Increase score
+            score = score + 100
+            scoreText.text = "Score: " .. score
+ 
+           elseif ( ( obj1.myName == "ship" and obj2.myName == "asteroid" ) or
+                 ( obj1.myName == "asteroid" and obj2.myName == "ship" ) )
+        then
+            if ( died == false ) then
+                died = true
+ 
+                -- Update lives
+                lives = lives - 1
+                livesText.text = "Lives: " .. lives
+ 
+                if ( lives == 0 ) then
+                    display.remove( ship )
+                else
+                    ship.alpha = 0
+                    timer.performWithDelay( 1000, restoreShip )
+                end
+            end
+        end
+    end
+end
+
+Runtime:addEventListener( "collision", onCollision )
