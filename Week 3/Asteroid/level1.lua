@@ -98,8 +98,8 @@ mainGroup:insert(ship)
 
 -- Display lives and score
 local uiGroup = display.newGroup()
-livesText = display.newText( "Lives: " .. lives, 200, 80, native.systemFont, 36 )
-scoreText = display.newText( "Score: " .. score, 400, 80, native.systemFont, 36 )
+livesText = display.newText( "Lives: " .. lives, 280, 80, native.systemFont, 36 )
+scoreText = display.newText( "Score: " .. score, 480, 80, native.systemFont, 36 )
 uiGroup:insert(livesText)
 uiGroup:insert(scoreText)
 
